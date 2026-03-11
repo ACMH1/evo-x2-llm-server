@@ -105,7 +105,12 @@ Edit `score_text()` in `eval.py` to tune scoring for different prompt types.
 - 2 pts per article with correct label (5 articles × 2 = 10 max)
 - 1 pt partial credit for adjacent labels: `positive`↔`mixed`, `negative`↔`mixed`
 - 0 pts for wrong label, invalid label, missing article, or unparseable JSON
-- Articles: A1 (positive), A2 (negative), A3 (neutral), A4 (mixed), A5 (negative)
+- Articles (real 2025-2026 news, chosen for misleading surface signals):
+  - A1 Morgan Stanley: record revenue + simultaneous layoffs → `mixed`
+  - A2 3M: revenue beat headline masks 5.5pt margin collapse → `negative`
+  - A3 Amazon: earnings beat undermined by capex guidance shock → `mixed`
+  - A4 Tesla: "beat expectations" noise vs 46% profit decline + lost EV crown → `negative`
+  - A5 Fed CPI: inflation near target but framed as insufficient by economists → `neutral`
 
 ## CLI reference
 

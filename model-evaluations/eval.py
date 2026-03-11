@@ -69,58 +69,74 @@ KNOWN_MODELS = [
 # Task definitions — edit prompts or add new entries freely
 # ---------------------------------------------------------------------------
 
-# Sentiment analysis — 5 articles with unambiguous ground-truth labels.
+# Sentiment analysis — 5 articles sourced from real 2025-2026 news events.
+# Chosen for genuine interpretive difficulty: each has a misleading surface signal.
 # Labels: "positive" | "negative" | "neutral" | "mixed"
+#
+# Why each is hard:
+#  A1 (mixed)    — record revenue headline masks simultaneous layoffs
+#  A2 (negative) — revenue beat headline masks severe margin collapse from discounting
+#  A3 (mixed)    — strong current quarter undermined by capex guidance shock
+#  A4 (negative) — "beat expectations" noise vs 46% profit decline and market share loss
+#  A5 (neutral)  — good inflation data framed as insufficient due to geopolitical context
 SENTIMENT_ARTICLES = [
     {
         "id": "A1",
         "text": (
-            "TechCorp reported record quarterly earnings on Thursday, beating analyst "
-            "estimates by 18%. Revenue surged 34% year-over-year driven by strong cloud "
-            "adoption. The CEO credited the results to aggressive expansion into emerging "
-            "markets and called the outlook for next year 'exceptionally bright'."
+            "Morgan Stanley reported record full-year revenues of $70.6 billion for 2025, "
+            "with investment banking revenues surging 47% in the final quarter. However, the "
+            "bank simultaneously laid off approximately 2,500 employees — 3% of its global "
+            "workforce — citing 'shifting business and location priorities.' The restructuring "
+            "came despite the record top-line performance, raising questions about whether "
+            "the growth is sustainable without the headcount that drove it."
         ),
-        "ground_truth": "positive",
+        "ground_truth": "mixed",
     },
     {
         "id": "A2",
         "text": (
-            "A 7.8-magnitude earthquake struck the coastal region early this morning, "
-            "killing at least 340 people and leaving thousands homeless. Emergency services "
-            "are struggling to reach isolated villages. The government has declared a "
-            "national state of emergency as the death toll is expected to rise."
+            "3M reported Q4 revenue of $6.02 billion, beating the $5.94 billion consensus "
+            "estimate. However, operating margin collapsed to 13.2% from 18.7% a year earlier "
+            "— a 5.5 percentage-point contraction — as management acknowledged that "
+            "'promotional activity and discounts pressured margins' in what they described "
+            "as 'relatively soft' market conditions across multiple segments."
         ),
         "ground_truth": "negative",
     },
     {
         "id": "A3",
         "text": (
-            "The Federal Reserve held interest rates steady at its meeting Wednesday, "
-            "leaving the benchmark rate unchanged at 4.25-4.5% for the third consecutive "
-            "meeting. Fed Chair stated that policymakers will continue to monitor incoming "
-            "data before making any further adjustments to monetary policy."
-        ),
-        "ground_truth": "neutral",
-    },
-    {
-        "id": "A4",
-        "text": (
-            "StreamBase announced it added 5.2 million subscribers last quarter, pushing "
-            "its global total past 280 million and sending shares up 11% in after-hours "
-            "trading. However, the company simultaneously warned that it would cut 8% of "
-            "its workforce — roughly 2,400 jobs — to offset rising content licensing costs."
+            "Amazon reported Q4 2025 sales of $213.4 billion, up 14% year-over-year and "
+            "ahead of its own guidance, with operating margin expanding to 11.7% from 11.3%. "
+            "The company then disclosed 2026 capital expenditure guidance of $200 billion — "
+            "roughly 60% above analyst expectations of $146 billion and 50% higher than the "
+            "$125 billion spent in 2025 — sending shares down 8% in after-hours trading "
+            "despite the earnings beat."
         ),
         "ground_truth": "mixed",
     },
     {
-        "id": "A5",
+        "id": "A4",
         "text": (
-            "Global equity markets plunged on Monday as renewed fears of a trade war "
-            "rattled investors. The S&P 500 dropped 3.2%, its worst single-day decline "
-            "in 14 months. The VIX volatility index spiked to its highest level since "
-            "March 2023. Bond yields fell sharply as investors fled to safe-haven assets."
+            "Tesla reported 2025 full-year profit of $3.8 billion, a 46% decline "
+            "year-over-year, though the result came in above lowered analyst expectations. "
+            "The company slashed average vehicle prices by 9.1% throughout the year and "
+            "lost its position as the world's top EV maker to BYD, which delivered "
+            "2.25 million battery-powered vehicles compared to Tesla's 1.65 million."
         ),
         "ground_truth": "negative",
+    },
+    {
+        "id": "A5",
+        "text": (
+            "The February 2026 Consumer Price Index showed headline inflation at 2.4% "
+            "annually, holding steady from January and close to the Federal Reserve's 2% "
+            "target. However, economist Ellen Zentner cautioned: 'A steady inflation reading "
+            "would probably be welcome on any other day, but against the backdrop of "
+            "geopolitical uncertainty, it may not carry as much weight with the Fed or "
+            "in markets.'"
+        ),
+        "ground_truth": "neutral",
     },
 ]
 
