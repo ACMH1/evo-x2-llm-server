@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # =============================================================================
 # GMKtec EVO-X2 LLM Server Setup
-# Hardware: Ryzen AI MAX+ 395 (Strix Halo), 128 GB RAM (64 GB iGPU VRAM), 2 TB NVMe
+# Hardware: Ryzen AI MAX+ 395 (Strix Halo), 128 GB RAM (95.2 GB iGPU VRAM+GTT), 2 TB NVMe
 # OS:       Fedora 43 Server (default partitioning with LVM)
 #
 # What this script does:
 #   1. Expands the root LV and creates a dedicated /models volume
 #   2. Adds GPU device access groups
-#   3. Installs ROCm (via AMD's RHEL9-compatible repo)
-#   4. Installs Ollama (with bundled ROCm)
-#   5. Configures the Ollama systemd service for LAN access + Strix Halo workaround
+#   3. Installs rocm-smi for diagnostics
+#   4. Verifies Podman is available (pre-installed on Fedora)
+#   5. Runs Ollama as a Podman container (ollama/ollama:rocm) with GPU passthrough
+#      and generates a systemd service for auto-start
 #   6. Opens the firewall port
 #   7. Sets a static IP (using the current DHCP-assigned address)
-#   8. Pulls qwen2.5-coder:32b and deepseek-r1:32b
-#   9. Creates 'coder' and 'planner' model aliases with sane context limits
+#   8. Pulls qwen2.5-coder:32b
+#   9. Creates a 'coder' model alias
 #  10. Installs an ollama-status utility
 #
 # Usage:
@@ -31,19 +32,20 @@ set -euo pipefail
 ROOT_LV_SIZE="100G"          # How large to make the root logical volume
 MODELS_DIR="/models"         # Mount point for the dedicated model storage LV
 
+# Container
+CONTAINER_IMAGE="docker.io/ollama/ollama:rocm"
+CONTAINER_NAME="ollama"
+
 # ROCm
 # The GFX override makes ROCm treat Strix Halo (gfx1151) as gfx1100.
 # Remove once AMD adds official gfx1151 support.
 HSA_GFX_OVERRIDE="11.0.0"
-ROCM_VERSION="6.3"                     # AMD ROCm repo version to use
-ROCM_RHEL_VER="9.4"                    # RHEL-compatible base for repo URL
 
 # Ollama
 OLLAMA_PORT="11434"
-# Context window per model. The Strix Halo has ~95 GB of combined VRAM+GTT,
-# so Ollama auto-selects 262K ctx — which burns ~28 GB on KV cache alone.
-# 16384 keeps each 32B model under 24 GB, allowing both to coexist.
-OLLAMA_CTX="16384"
+# Context window per model alias. Ollama auto-detects ~262K from 95 GB VRAM;
+# 32768 is a practical cap — large enough for big codebases, avoids very long prefills.
+OLLAMA_CTX="32768"
 
 # Network
 # Leave STATIC_IP / GATEWAY empty to auto-detect from the current DHCP lease.
@@ -51,17 +53,15 @@ STATIC_IP=""
 GATEWAY=""
 DNS_SERVERS="8.8.8.8 8.8.4.4"
 
-# Models to pull (standard ollama tags)
+# Models to pull
 MODELS_TO_PULL=(
     "qwen2.5-coder:32b"
-    "deepseek-r1:32b"
 )
 
 # Named aliases exposed to clients.
 # Format: "alias_name|base_model_tag|system_prompt"
 MODEL_ALIASES=(
     "coder|qwen2.5-coder:32b|You are an expert coding assistant. Provide clean, correct, well-structured code."
-    "planner|deepseek-r1:32b|You are a senior technical architect. Think step by step and provide clear, structured plans."
 )
 
 # ── END CONFIGURATION ─────────────────────────────────────────────────────────
@@ -69,10 +69,8 @@ MODEL_ALIASES=(
 LOG_FILE="/var/log/llm-server-setup.log"
 SCRIPT_START=$(date '+%Y-%m-%d %H:%M:%S')
 
-# Tee everything to log file
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-# Colours
 R='\033[0;31m'; G='\033[0;32m'; Y='\033[1;33m'; B='\033[0;34m'; N='\033[0m'
 
 log()  { echo -e "${B}[$(date '+%H:%M:%S')]${N} $*"; }
@@ -80,6 +78,8 @@ ok()   { echo -e "${G}[$(date '+%H:%M:%S')] ✓${N} $*"; }
 warn() { echo -e "${Y}[$(date '+%H:%M:%S')] ⚠${N}  $*"; }
 die()  { echo -e "${R}[$(date '+%H:%M:%S')] ✗${N} $*" >&2; exit 1; }
 step() { echo -e "\n${B}━━━ $* ━━━${N}"; }
+
+ollama_exec() { podman exec "$CONTAINER_NAME" ollama "$@"; }
 
 
 # =============================================================================
@@ -91,7 +91,6 @@ preflight() {
 
     [[ $EUID -eq 0 ]] || die "Must be run as root: sudo bash $0"
 
-    # OS check
     if ! grep -qi "fedora" /etc/os-release 2>/dev/null; then
         warn "This script targets Fedora. Detected OS may differ — proceeding anyway."
     else
@@ -100,29 +99,25 @@ preflight() {
         ok "OS: Fedora $ver"
     fi
 
-    # KFD — AMD GPU compute interface (should be present after normal boot)
     if [[ -c /dev/kfd ]]; then
         ok "/dev/kfd present (AMDGPU driver loaded)"
     else
         warn "/dev/kfd missing. ROCm will not detect the GPU. Try rebooting first."
     fi
 
-    # Strix Halo in lspci
     if lspci 2>/dev/null | grep -qi "Strix Halo"; then
         ok "Strix Halo GPU found in lspci"
     else
         warn "Strix Halo not found in lspci — wrong machine, or driver issue"
     fi
 
-    # RAM (expect ~62 GB visible after BIOS allocates 64 GB to iGPU)
     local ram_gb
     ram_gb=$(awk '/MemTotal/{print int($2/1024/1024)}' /proc/meminfo)
     ok "System RAM: ${ram_gb} GB"
     (( ram_gb >= 48 )) || warn "Less RAM than expected. Check BIOS iGPU memory allocation."
 
-    # Required tools
     local missing=()
-    for cmd in lspci lvm lvextend lvcreate mkfs.xfs nmcli firewall-cmd python3 curl; do
+    for cmd in lspci lvm lvextend lvcreate mkfs.xfs nmcli firewall-cmd python3 curl podman; do
         command -v "$cmd" &>/dev/null || missing+=("$cmd")
     done
     if (( ${#missing[@]} > 0 )); then
@@ -141,7 +136,6 @@ preflight() {
 setup_storage() {
     step "Step 1: Storage"
 
-    # ── Detect LVM layout ────────────────────────────────────────────────────
     local vg
     vg=$(vgs --noheadings -o vg_name 2>/dev/null | tr -d ' ' | head -1)
     [[ -n "$vg" ]] || die "No LVM volume group found. Is this a default Fedora Server install?"
@@ -150,21 +144,19 @@ setup_storage() {
     local root_lv="/dev/${vg}/root"
     [[ -b "$root_lv" ]] || die "Expected root LV at $root_lv — not found."
 
-    # ── Grow root LV ─────────────────────────────────────────────────────────
     local current_gb
     current_gb=$(lvs --noheadings --units g -o lv_size "$root_lv" \
                  | tr -d ' <' | sed 's/g.*//')
-    current_gb=${current_gb%%.*}   # strip decimals
+    current_gb=${current_gb%%.*}
 
     if (( current_gb >= 90 )); then
         ok "Root LV already ${current_gb} GB — skipping extension"
     else
         log "Extending root LV: ${current_gb} GB → ${ROOT_LV_SIZE}"
         lvextend -L "${ROOT_LV_SIZE}" "$root_lv" || {
-            warn "Could not set exact size (not enough free space?). Using all free space."
+            warn "Could not set exact size. Using all free space."
             lvextend -l +100%FREE "$root_lv" || true
         }
-        # Grow filesystem (XFS on Fedora, ext4 fallback)
         if xfs_growfs / 2>/dev/null; then
             ok "XFS filesystem grown"
         elif resize2fs "$root_lv" 2>/dev/null; then
@@ -174,7 +166,6 @@ setup_storage() {
         fi
     fi
 
-    # ── Create /models LV ────────────────────────────────────────────────────
     local models_lv="/dev/${vg}/models"
 
     if lvs "$models_lv" &>/dev/null; then
@@ -186,7 +177,7 @@ setup_storage() {
         free_gb=${free_gb%%.*}
 
         if (( free_gb < 50 )); then
-            warn "Only ${free_gb} GB free in VG — skipping /models LV. Pull models to ${MODELS_DIR} anyway."
+            warn "Only ${free_gb} GB free in VG — skipping /models LV."
         else
             log "Creating /models LV (${free_gb} GB available)..."
             lvcreate -l 100%FREE -n models "$vg"
@@ -195,10 +186,8 @@ setup_storage() {
         fi
     fi
 
-    # ── Mount /models ─────────────────────────────────────────────────────────
     mkdir -p "${MODELS_DIR}"
 
-    # Add fstab entry if not already there
     local fstab_dev="/dev/${vg}/models"
     if ! grep -qE "${fstab_dev}|/dev/mapper/${vg}-models" /etc/fstab 2>/dev/null; then
         echo "${fstab_dev} ${MODELS_DIR} xfs defaults 0 0" >> /etc/fstab
@@ -234,132 +223,102 @@ setup_gpu_groups() {
 
 
 # =============================================================================
-# STEP 3 — ROCm
+# STEP 3 — ROCm DIAGNOSTICS
 # =============================================================================
 
 setup_rocm() {
-    step "Step 3: ROCm"
+    step "Step 3: ROCm diagnostics (rocm-smi)"
 
-    # Already installed?
-    if [[ -f /etc/yum.repos.d/rocm.repo ]] && command -v /usr/bin/rocm-smi &>/dev/null; then
-        ok "ROCm already installed"
+    # ROCm compute libraries are bundled inside the Ollama container image.
+    # We only install rocm-smi on the host for monitoring/diagnostics.
+    if command -v rocm-smi &>/dev/null; then
+        ok "rocm-smi already installed"
         return
     fi
 
-    log "Writing AMD ROCm repo (RHEL ${ROCM_RHEL_VER} / ROCm ${ROCM_VERSION})..."
-    cat > /etc/yum.repos.d/rocm.repo <<REPOEOF
-[amdgpu]
-name=amdgpu
-baseurl=https://repo.radeon.com/amdgpu/${ROCM_VERSION}/rhel/${ROCM_RHEL_VER}/main/x86_64/
-enabled=1
-priority=50
-gpgcheck=1
-gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key
-
-[rocm]
-name=rocm
-baseurl=https://repo.radeon.com/rocm/rhel9/${ROCM_VERSION}/main
-enabled=1
-priority=50
-gpgcheck=1
-gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key
-REPOEOF
-
-    log "Installing rocminfo and rocm-smi..."
-    dnf install -y rocminfo rocm-smi
-    ok "ROCm packages installed"
-
-    # Quick GPU detection sanity-check
-    local rocminfo_bin
-    rocminfo_bin=$(find /opt/rocm*/bin -name rocminfo 2>/dev/null | head -1)
-    if [[ -n "$rocminfo_bin" ]]; then
-        if HSA_OVERRIDE_GFX_VERSION="${HSA_GFX_OVERRIDE}" "$rocminfo_bin" 2>&1 \
-                | grep -q "Device Type.*GPU"; then
-            ok "Strix Halo detected by rocminfo (GFX override ${HSA_GFX_OVERRIDE})"
-        else
-            warn "rocminfo did not detect a GPU agent — Ollama's bundled ROCm may still work"
-        fi
+    log "Installing rocm-smi for diagnostics..."
+    if dnf install -y rocm-smi 2>/dev/null; then
+        ok "rocm-smi installed"
+    else
+        warn "rocm-smi not available via dnf — install manually if needed for diagnostics"
     fi
 }
 
 
 # =============================================================================
-# STEP 4 — OLLAMA
+# STEP 4 — PODMAN
 # =============================================================================
 
-install_ollama() {
-    step "Step 4: Ollama"
+verify_podman() {
+    step "Step 4: Podman"
 
-    if command -v ollama &>/dev/null; then
-        ok "Ollama already installed: $(ollama --version 2>/dev/null || echo '(version unknown)')"
-        return
+    if ! command -v podman &>/dev/null; then
+        log "Installing Podman..."
+        dnf install -y podman
     fi
+    ok "Podman $(podman --version | awk '{print $3}')"
 
-    log "Downloading and installing Ollama..."
-    curl -fsSL https://ollama.com/install.sh | sh
-    ok "Ollama installed"
+    log "Pulling container image: ${CONTAINER_IMAGE}"
+    podman pull "${CONTAINER_IMAGE}"
+    ok "Image pulled: ${CONTAINER_IMAGE}"
 }
 
 
 # =============================================================================
-# STEP 5 — SERVICE CONFIGURATION
+# STEP 5 — OLLAMA CONTAINER SERVICE
 # =============================================================================
 
-configure_ollama_service() {
-    step "Step 5: Ollama service configuration"
+configure_ollama_container() {
+    step "Step 5: Ollama container service"
 
-    mkdir -p /etc/systemd/system/ollama.service.d
-
-    cat > /etc/systemd/system/ollama.service.d/override.conf <<SVCEOF
-[Service]
-# Bind to all interfaces so LAN clients can reach the API
-Environment="OLLAMA_HOST=0.0.0.0:${OLLAMA_PORT}"
-
-# Strix Halo (gfx1151) workaround.
-# ROCm does not yet list gfx1151 as a supported target; this alias maps it to
-# gfx1100 (RX 7900-class) which has full ROCm support.
-# Remove this line once AMD adds official gfx1151 support to ROCm.
-Environment="HSA_OVERRIDE_GFX_VERSION=${HSA_GFX_OVERRIDE}"
-
-# Store models on the dedicated storage volume
-Environment="OLLAMA_MODELS=${MODELS_DIR}"
-
-# Keep ROCm tools in PATH for rocm-smi / diagnostics
-Environment="PATH=/opt/rocm-${ROCM_VERSION}.0/bin:/usr/local/bin:/usr/bin"
-
-# Ensure the ollama process can open the GPU compute and render devices
-SupplementaryGroups=render video
-SVCEOF
-
-    ok "Service drop-in written"
-
-    # The Ollama installer creates the ollama user; make sure it owns /models
-    if id ollama &>/dev/null; then
-        chown -R ollama:ollama "${MODELS_DIR}"
-        ok "Ownership of ${MODELS_DIR} set to ollama:ollama"
+    # Stop and remove any existing container
+    if podman ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        log "Removing existing container: ${CONTAINER_NAME}"
+        podman rm -f "${CONTAINER_NAME}"
     fi
+
+    # Container runs as root; ensure /models is owned accordingly
+    chown -R root:root "${MODELS_DIR}"
+    ok "Ownership of ${MODELS_DIR} set to root:root"
+
+    log "Starting Ollama container..."
+    podman run -d \
+        --name "${CONTAINER_NAME}" \
+        --device /dev/kfd \
+        --device /dev/dri \
+        -v "${MODELS_DIR}:/root/.ollama/models" \
+        -p "${OLLAMA_PORT}:${OLLAMA_PORT}" \
+        -e HSA_OVERRIDE_GFX_VERSION="${HSA_GFX_OVERRIDE}" \
+        -e OLLAMA_HOST="0.0.0.0:${OLLAMA_PORT}" \
+        "${CONTAINER_IMAGE}"
+
+    # Generate and enable a systemd service for auto-start on boot
+    podman generate systemd \
+        --name "${CONTAINER_NAME}" \
+        --restart-policy=always \
+        --new \
+        > /etc/systemd/system/ollama-container.service
 
     systemctl daemon-reload
-    systemctl enable ollama
-    systemctl restart ollama
+    systemctl enable ollama-container
+    ok "Systemd service: ollama-container (enabled)"
 
-    # Give the service a moment to start and discover the GPU
-    log "Waiting for Ollama to start..."
+    # Wait for Ollama to be ready
+    log "Waiting for Ollama API..."
     local attempts=0
     while ! curl -sf "http://localhost:${OLLAMA_PORT}/" &>/dev/null; do
         sleep 2
-        (( ++attempts > 15 )) && die "Ollama did not become ready after 30 s. Check: journalctl -u ollama -n 30"
+        (( ++attempts > 20 )) && die "Ollama did not become ready after 40s. Check: podman logs ${CONTAINER_NAME}"
     done
     ok "Ollama API is responding"
 
-    # Confirm GPU was picked up
+    # Confirm GPU detection
     local gpu_line
-    gpu_line=$(journalctl -u ollama --since "1 minute ago" --no-pager -q \
-               | grep "inference compute" | tail -1)
+    gpu_line=$(podman logs "${CONTAINER_NAME}" 2>&1 | grep "inference compute" | tail -1)
     if [[ -n "$gpu_line" ]]; then
         ok "GPU confirmed: $gpu_line"
     else
-        warn "GPU not yet visible in logs — may appear after first model load"
+        warn "GPU not yet in logs — will appear after first model load"
     fi
 }
 
@@ -393,7 +352,6 @@ configure_firewall() {
 configure_static_ip() {
     step "Step 7: Static IP"
 
-    # Detect the interface carrying the default route
     local iface
     iface=$(ip route show default 2>/dev/null | awk '{print $5}' | head -1)
     if [[ -z "$iface" ]]; then
@@ -402,7 +360,6 @@ configure_static_ip() {
     fi
     log "Primary interface: $iface"
 
-    # Already static?
     local method
     method=$(nmcli -g ipv4.method con show "$iface" 2>/dev/null || echo "")
     if [[ "$method" == "manual" ]]; then
@@ -412,7 +369,6 @@ configure_static_ip() {
         return
     fi
 
-    # Auto-detect IP and gateway from DHCP lease if not overridden
     if [[ -z "$STATIC_IP" ]]; then
         STATIC_IP=$(ip addr show "$iface" | awk '/inet / {print $2}' | head -1)
     fi
@@ -444,7 +400,6 @@ pull_models() {
     step "Step 8: Pulling models"
 
     for model in "${MODELS_TO_PULL[@]}"; do
-        # Check if already present
         if python3 - "$model" <<'PYEOF'
 import sys, urllib.request, json
 model = sys.argv[1]
@@ -452,7 +407,6 @@ try:
     with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5) as r:
         data = json.load(r)
     names = [m["name"] for m in data.get("models", [])]
-    # normalise: "qwen2.5-coder:32b" matches "qwen2.5-coder:32b"
     base, _, tag = model.partition(":")
     tag = tag or "latest"
     if model in names or f"{base}:{tag}" in names:
@@ -469,46 +423,14 @@ PYEOF
         fi
 
         log "Pulling $model — this may take several minutes..."
-        python3 - "$model" <<'PYEOF'
-import sys, urllib.request, json, time
-model = sys.argv[1]
-payload = json.dumps({"model": model, "stream": True}).encode()
-req = urllib.request.Request(
-    "http://localhost:11434/api/pull",
-    data=payload,
-    headers={"Content-Type": "application/json"},
-    method="POST",
-)
-last_status = ""
-try:
-    with urllib.request.urlopen(req, timeout=7200) as resp:
-        for line in resp:
-            try:
-                d = json.loads(line)
-                status = d.get("status", "")
-                completed = d.get("completed", 0)
-                total = d.get("total", 0)
-                if total and completed:
-                    pct = int(completed / total * 100)
-                    msg = f"  {status}: {pct}%"
-                else:
-                    msg = f"  {status}"
-                if msg != last_status:
-                    print(msg, flush=True)
-                    last_status = msg
-            except json.JSONDecodeError:
-                pass
-except Exception as e:
-    print(f"Pull failed: {e}", file=sys.stderr)
-    sys.exit(1)
-PYEOF
+        ollama_exec pull "$model"
         ok "$model pulled"
     done
 }
 
 
 # =============================================================================
-# STEP 9 — MODEL ALIASES (with capped context window)
+# STEP 9 — MODEL ALIASES
 # =============================================================================
 
 create_model_aliases() {
@@ -529,7 +451,7 @@ SYSTEM "${system_prompt}"
 MFEOF
 
         log "Creating alias: $alias → $base_model (ctx=${OLLAMA_CTX})"
-        OLLAMA_MODELS="${MODELS_DIR}" ollama create "$alias" -f "$modelfile"
+        ollama_exec create "$alias" -f "/root/.ollama/models/modelfiles/${alias}.Modelfile"
         ok "Alias '$alias' created"
     done
 }
@@ -546,12 +468,13 @@ install_status_script() {
 #!/usr/bin/env bash
 # Quick status overview for the Ollama LLM server on GMKtec EVO-X2
 
-echo "=== Service ==="
-if systemctl is-active --quiet ollama; then
+echo "=== Container ==="
+if podman ps --format '{{.Names}}' 2>/dev/null | grep -q "^ollama$"; then
     echo "  ollama: running"
-    echo "  listening: $(ss -tlnp 2>/dev/null | awk '/11434/{print $4}' | head -1)"
+    echo "  image:  $(podman inspect ollama --format '{{.ImageName}}' 2>/dev/null)"
 else
     echo "  ollama: STOPPED"
+    echo "  start with: systemctl start ollama-container"
 fi
 
 echo ""
@@ -559,7 +482,7 @@ echo "=== GPU (Strix Halo — gfx1100 override) ==="
 if command -v rocm-smi &>/dev/null; then
     HSA_OVERRIDE_GFX_VERSION=11.0.0 rocm-smi 2>/dev/null
 else
-    echo "  rocm-smi not found"
+    echo "  rocm-smi not found — install for GPU diagnostics"
 fi
 
 echo ""
@@ -574,7 +497,8 @@ try:
         print("  (none)")
     for m in models:
         gb = m.get("size_vram", 0) / 1024**3
-        print(f"  {m['name']:<35} {gb:.1f} GB VRAM")
+        ctx = m.get("context_length", 0)
+        print(f"  {m['name']:<35} {gb:.1f} GB VRAM  ctx={ctx}")
 except Exception as e:
     print(f"  (error: {e})")
 PYEOF
@@ -614,7 +538,7 @@ main() {
     echo ""
     echo "╔═══════════════════════════════════════════════════════════╗"
     echo "║  GMKtec EVO-X2 LLM Server Setup                          ║"
-    echo "║  Strix Halo · Fedora 43 · Ollama + ROCm                  ║"
+    echo "║  Strix Halo · Fedora 43 · Ollama (Podman) + ROCm         ║"
     echo "╚═══════════════════════════════════════════════════════════╝"
     echo "  Started: $SCRIPT_START"
     echo "  Log:     $LOG_FILE"
@@ -624,8 +548,8 @@ main() {
     setup_storage
     setup_gpu_groups
     setup_rocm
-    install_ollama
-    configure_ollama_service
+    verify_podman
+    configure_ollama_container
     configure_firewall
     configure_static_ip
     pull_models
@@ -652,7 +576,7 @@ main() {
     done
     echo ""
     echo "  Quick status:  ollama-status"
-    echo "  Service logs:  journalctl -fu ollama"
+    echo "  Container logs:  podman logs -f ollama"
     echo "  Full log:      $LOG_FILE"
     echo ""
     echo "  Example (from any LAN machine):"
