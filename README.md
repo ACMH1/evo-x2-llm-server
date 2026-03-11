@@ -50,6 +50,34 @@ Running Ollama in the `ollama/ollama:rocm` container has two advantages over the
 1. **Better VRAM detection** — the container sees the full 95.2 GB of unified memory (VRAM + GTT), vs ~64 GB with the native install. This allows Ollama to auto-configure a much larger default context window.
 2. **Bundled ROCm** — no need to manage the ROCm host stack separately; the correct version ships inside the image.
 
+## Managing models
+
+Models are declared in [`models.txt`](models.txt). Edit this file to add, remove, or swap models — no other changes needed.
+
+```
+# models.txt
+qwen2.5-coder:32b
+deepseek-r1:32b
+```
+
+On every `docker compose up`, the `ollama-models` init container reads `models.txt` and pulls any models not already present (pull is idempotent — existing models are skipped). The container exits cleanly once all models are confirmed.
+
+**To apply changes immediately** (without a full restart):
+
+```bash
+# Edit models.txt on the server
+nano /etc/ollama/models.txt
+
+# Re-run just the init container
+cd /etc/ollama && podman-compose run --rm ollama-models
+```
+
+**To remove a model** that is no longer in `models.txt`:
+
+```bash
+podman exec ollama ollama rm <model-name>
+```
+
 ## Configuration
 
 Edit the variables at the top of `setup-llm-server.sh` before running:
@@ -59,9 +87,6 @@ ROOT_LV_SIZE="100G"          # Root partition size
 OLLAMA_CTX="32768"           # Context window cap for model aliases (32 K default)
 CONTAINER_IMAGE="docker.io/ollama/ollama:rocm"  # Bump tag for newer Ollama releases
 STATIC_IP=""                 # Leave blank to use current DHCP address
-MODELS_TO_PULL=(             # Add or swap models here
-    "qwen2.5-coder:32b"
-)
 ```
 
 ## Usage from LAN clients
