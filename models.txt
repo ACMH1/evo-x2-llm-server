@@ -1,4 +1,19 @@
 # Models pulled on every `docker compose up`
 # One model per line. Lines starting with # are ignored.
 # Ollama pull is idempotent — already-present models are skipped.
+
+# Coding (baseline)
 qwen2.5-coder:32b
+qwen2.5-coder:7b
+
+# Coding (primary) — qwen3-coder MoE: 30B total / 3B active
+qwen3-coder:30b
+
+# Fast KG extraction — qwen3.5 MoE: 35B total / 3B active
+qwen3.5:35b-a3b
+
+# Logic / architecting
+deepseek-r1:70b
+
+# Bulk doc reading — Llama4 Scout MoE: 109B total, 10M context
+llama4:scout
