@@ -13,3 +13,22 @@ services:
     environment:
       - HSA_OVERRIDE_GFX_VERSION=11.0.0
       - OLLAMA_HOST=0.0.0.0:11434
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 15s
+
+  ollama-models:
+    image: docker.io/ollama/ollama:rocm
+    container_name: ollama-models
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./models.txt:/models.txt:ro,z
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "grep -v '^#' /models.txt | grep -v '^[[:space:]]*$' | xargs -I{} ollama pull {}"]

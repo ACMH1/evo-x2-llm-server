@@ -1,0 +1,4 @@
+# Models pulled on every `docker compose up`
+# One model per line. Lines starting with # are ignored.
+# Ollama pull is idempotent — already-present models are skipped.
+qwen2.5-coder:32b
