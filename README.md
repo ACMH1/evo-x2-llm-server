@@ -17,7 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/ACMH1/evo-x2-llm-server/main/setup-
 |---|---|
 | **Storage** | Extends root LV to 100 GB; creates a dedicated `/models` LV using the remaining ~1.8 TB |
 | **ROCm** | `rocm-smi` installed on host for diagnostics; ROCm compute bundled inside the container image |
-| **Ollama** | Runs as a Podman container (`ollama/ollama:rocm`) with GPU passthrough; bound to `0.0.0.0:11434` for LAN access; auto-starts via systemd |
+| **Ollama** | Runs as a Podman Compose service (`ollama/ollama:rocm`) with GPU passthrough; bound to `0.0.0.0:11434` for LAN access; auto-starts via systemd |
 | **Models** | `qwen2.5-coder:32b` (coding) |
 | **Aliases** | `coder` — capped at 32 K context to avoid multi-minute prefills on large inputs |
 | **Network** | Locks in current DHCP address as static IP |
@@ -84,4 +84,5 @@ Or use any OpenAI-compatible client pointed at `http://<server-ip>:11434/v1`.
 ollama-status                        # GPU temp, loaded models, disk usage
 podman logs -f ollama                # Live container logs
 systemctl status ollama-container    # Systemd service status
+podman compose -f /etc/ollama/docker-compose.yaml ps  # Compose stack status
 ```

@@ -35,6 +35,7 @@ MODELS_DIR="/models"         # Mount point for the dedicated model storage LV
 # Container
 CONTAINER_IMAGE="docker.io/ollama/ollama:rocm"
 CONTAINER_NAME="ollama"
+COMPOSE_DIR="/etc/ollama"
 
 # ROCm
 # The GFX override makes ROCm treat Strix Halo (gfx1151) as gfx1100.
@@ -246,17 +247,28 @@ setup_rocm() {
 
 
 # =============================================================================
-# STEP 4 — PODMAN
+# STEP 4 — PODMAN + COMPOSE
 # =============================================================================
 
 verify_podman() {
-    step "Step 4: Podman"
+    step "Step 4: Podman + Compose"
 
     if ! command -v podman &>/dev/null; then
         log "Installing Podman..."
         dnf install -y podman
     fi
     ok "Podman $(podman --version | awk '{print $3}')"
+
+    # podman compose is built into Podman 4.7+; fall back to podman-compose
+    if podman compose version &>/dev/null 2>&1; then
+        ok "podman compose available (built-in)"
+    elif command -v podman-compose &>/dev/null; then
+        ok "podman-compose available"
+    else
+        log "Installing podman-compose..."
+        dnf install -y podman-compose || pip3 install podman-compose
+        ok "podman-compose installed"
+    fi
 
     log "Pulling container image: ${CONTAINER_IMAGE}"
     podman pull "${CONTAINER_IMAGE}"
@@ -265,15 +277,15 @@ verify_podman() {
 
 
 # =============================================================================
-# STEP 5 — OLLAMA CONTAINER SERVICE
+# STEP 5 — OLLAMA COMPOSE SERVICE
 # =============================================================================
 
 configure_ollama_container() {
-    step "Step 5: Ollama container service"
+    step "Step 5: Ollama compose service"
 
     # Stop and remove any existing container
     if podman ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-        log "Removing existing container: ${CONTAINER_NAME}"
+        log "Stopping existing container: ${CONTAINER_NAME}"
         podman rm -f "${CONTAINER_NAME}"
     fi
 
@@ -281,27 +293,50 @@ configure_ollama_container() {
     chown -R root:root "${MODELS_DIR}"
     ok "Ownership of ${MODELS_DIR} set to root:root"
 
-    log "Starting Ollama container..."
-    podman run -d \
-        --name "${CONTAINER_NAME}" \
-        --device /dev/kfd \
-        --device /dev/dri \
-        -v "${MODELS_DIR}:/root/.ollama/models" \
-        -p "${OLLAMA_PORT}:${OLLAMA_PORT}" \
-        -e HSA_OVERRIDE_GFX_VERSION="${HSA_GFX_OVERRIDE}" \
-        -e OLLAMA_HOST="0.0.0.0:${OLLAMA_PORT}" \
-        "${CONTAINER_IMAGE}"
+    # Install compose file
+    mkdir -p "${COMPOSE_DIR}"
+    cat > "${COMPOSE_DIR}/docker-compose.yaml" <<COMPOSEEOF
+services:
+  ollama:
+    image: ${CONTAINER_IMAGE}
+    container_name: ${CONTAINER_NAME}
+    restart: always
+    ports:
+      - "${OLLAMA_PORT}:${OLLAMA_PORT}"
+    volumes:
+      - ${MODELS_DIR}:/root/.ollama/models
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=${HSA_GFX_OVERRIDE}
+      - OLLAMA_HOST=0.0.0.0:${OLLAMA_PORT}
+COMPOSEEOF
+    ok "Compose file written to ${COMPOSE_DIR}/docker-compose.yaml"
 
-    # Generate and enable a systemd service for auto-start on boot
-    podman generate systemd \
-        --name "${CONTAINER_NAME}" \
-        --restart-policy=always \
-        --new \
-        > /etc/systemd/system/ollama-container.service
+    # Create a systemd service that drives the compose stack
+    cat > /etc/systemd/system/ollama-container.service <<SVCEOF
+[Unit]
+Description=Ollama LLM Server (Podman Compose)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=${COMPOSE_DIR}
+ExecStart=podman compose up
+ExecStop=podman compose down
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+SVCEOF
 
     systemctl daemon-reload
     systemctl enable ollama-container
-    ok "Systemd service: ollama-container (enabled)"
+    systemctl start ollama-container
+    ok "Systemd service: ollama-container (enabled + started)"
 
     # Wait for Ollama to be ready
     log "Waiting for Ollama API..."
@@ -575,9 +610,10 @@ main() {
         printf "    %-12s →  %s\n" "$alias" "$base_model"
     done
     echo ""
-    echo "  Quick status:  ollama-status"
-    echo "  Container logs:  podman logs -f ollama"
-    echo "  Full log:      $LOG_FILE"
+    echo "  Quick status:   ollama-status"
+    echo "  Container logs: podman logs -f ollama"
+    echo "  Compose file:   ${COMPOSE_DIR}/docker-compose.yaml"
+    echo "  Full log:       $LOG_FILE"
     echo ""
     echo "  Example (from any LAN machine):"
     echo "    curl http://${server_ip}:${OLLAMA_PORT}/api/generate \\"
