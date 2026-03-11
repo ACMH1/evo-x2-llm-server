@@ -7,9 +7,10 @@ report + raw JSON results file.
 
 Tasks
 -----
-  kg_extraction    Extract a knowledge graph as JSON from a dense paragraph.
-  code_generation  Write a correct Python function (assertions are executed).
-  reasoning        Diagnose a timed latency-spike scenario with ranked causes.
+  kg_extraction       Extract a knowledge graph as JSON from a dense paragraph.
+  code_generation     Write a correct Python function (assertions are executed).
+  reasoning           Diagnose a timed latency-spike scenario with ranked causes.
+  sentiment_analysis  Classify 5 news article snippets; accuracy scored vs ground truth.
 
 Usage
 -----
@@ -30,10 +31,12 @@ Usage
 
 Adding new tasks
 ----------------
-  1. Add a dict to TASKS with keys: name, type ("kg" | "code" | "text"), prompt.
-  2. For type "kg"   — eval_kg()   scores the JSON output automatically.
-     For type "code" — eval_code() executes the code and checks return code.
-     For type "text" — score_text() applies keyword heuristics; edit to suit.
+  1. Add a dict to TASKS with keys: name, type, prompt (+ ground_truth for "sentiment").
+  2. Supported types:
+       "kg"        — eval_kg()         scores JSON nodes/edges output
+       "code"      — eval_code()       executes the code and checks assertions
+       "text"      — score_text()      keyword heuristics; edit per-task
+       "sentiment" — eval_sentiment()  accuracy vs ground_truth labels
   3. Done — the task will be included in the next run.
 """
 
@@ -65,6 +68,67 @@ KNOWN_MODELS = [
 # ---------------------------------------------------------------------------
 # Task definitions — edit prompts or add new entries freely
 # ---------------------------------------------------------------------------
+
+# Sentiment analysis — 5 articles with unambiguous ground-truth labels.
+# Labels: "positive" | "negative" | "neutral" | "mixed"
+SENTIMENT_ARTICLES = [
+    {
+        "id": "A1",
+        "text": (
+            "TechCorp reported record quarterly earnings on Thursday, beating analyst "
+            "estimates by 18%. Revenue surged 34% year-over-year driven by strong cloud "
+            "adoption. The CEO credited the results to aggressive expansion into emerging "
+            "markets and called the outlook for next year 'exceptionally bright'."
+        ),
+        "ground_truth": "positive",
+    },
+    {
+        "id": "A2",
+        "text": (
+            "A 7.8-magnitude earthquake struck the coastal region early this morning, "
+            "killing at least 340 people and leaving thousands homeless. Emergency services "
+            "are struggling to reach isolated villages. The government has declared a "
+            "national state of emergency as the death toll is expected to rise."
+        ),
+        "ground_truth": "negative",
+    },
+    {
+        "id": "A3",
+        "text": (
+            "The Federal Reserve held interest rates steady at its meeting Wednesday, "
+            "leaving the benchmark rate unchanged at 4.25-4.5% for the third consecutive "
+            "meeting. Fed Chair stated that policymakers will continue to monitor incoming "
+            "data before making any further adjustments to monetary policy."
+        ),
+        "ground_truth": "neutral",
+    },
+    {
+        "id": "A4",
+        "text": (
+            "StreamBase announced it added 5.2 million subscribers last quarter, pushing "
+            "its global total past 280 million and sending shares up 11% in after-hours "
+            "trading. However, the company simultaneously warned that it would cut 8% of "
+            "its workforce — roughly 2,400 jobs — to offset rising content licensing costs."
+        ),
+        "ground_truth": "mixed",
+    },
+    {
+        "id": "A5",
+        "text": (
+            "Global equity markets plunged on Monday as renewed fears of a trade war "
+            "rattled investors. The S&P 500 dropped 3.2%, its worst single-day decline "
+            "in 14 months. The VIX volatility index spiked to its highest level since "
+            "March 2023. Bond yields fell sharply as investors fled to safe-haven assets."
+        ),
+        "ground_truth": "negative",
+    },
+]
+
+_SENTIMENT_ARTICLE_BLOCK = "\n\n".join(
+    f'Article {a["id"]}: "{a["text"]}"' for a in SENTIMENT_ARTICLES
+)
+
+_SENTIMENT_IDS = [a["id"] for a in SENTIMENT_ARTICLES]
 
 KG_TEXT = (
     "The Linux kernel, developed by Linus Torvalds in 1991, is the core of many "
@@ -116,6 +180,18 @@ TASKS = {
             "  - One sentence explanation\n"
             "  - Two specific diagnostic commands or SQL queries to confirm it\n\n"
             "Be concise and specific."
+        ),
+    },
+    "sentiment_analysis": {
+        "name": "Sentiment Analysis",
+        "type": "sentiment",
+        "ground_truth": {a["id"]: a["ground_truth"] for a in SENTIMENT_ARTICLES},
+        "prompt": (
+            "Classify the sentiment of each news article below.\n"
+            "Use exactly one of these labels per article: positive | negative | neutral | mixed\n\n"
+            "Output ONLY a JSON array — no markdown fences, no explanation. Each element must have:\n"
+            '  {"id": "<article id>", "sentiment": "<label>", "reason": "<one sentence>"}\n\n'
+            + _SENTIMENT_ARTICLE_BLOCK
         ),
     },
     # -----------------------------------------------------------------------
@@ -259,6 +335,86 @@ def score_text(response: str) -> dict:
     return {"score": max(0, min(10, score)), "word_count": len(response.split())}
 
 
+def eval_sentiment(response: str, ground_truth: dict) -> dict:
+    """
+    Parse a JSON array of sentiment classifications and score against ground truth.
+
+    Scoring (0-10):
+      - 2 pts per correct label (5 articles × 2 = 10 max)
+      - Partial credit: 1 pt if label is adjacent (e.g. mixed vs positive/negative)
+      - 0 pts for wrong label, schema failure, or missing article
+
+    Adjacent pairs (half-credit): positive<->mixed, negative<->mixed
+    """
+    VALID_LABELS = {"positive", "negative", "neutral", "mixed"}
+    ADJACENT = {
+        ("positive", "mixed"), ("mixed", "positive"),
+        ("negative", "mixed"), ("mixed", "negative"),
+    }
+
+    # Strip markdown fences and find the JSON array
+    text = re.sub(r"```[a-z]*\n?", "", response).strip()
+    match = re.search(r"\[[\s\S]*\]", text)
+    if not match:
+        return {
+            "valid": False, "error": "no JSON array found",
+            "correct": 0, "partial": 0, "wrong": 0,
+            "predictions": {}, "score": 0,
+        }
+    try:
+        items = json.loads(match.group())
+    except json.JSONDecodeError as exc:
+        return {
+            "valid": False, "error": str(exc),
+            "correct": 0, "partial": 0, "wrong": 0,
+            "predictions": {}, "score": 0,
+        }
+
+    predictions = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        aid = str(item.get("id", "")).strip()
+        label = str(item.get("sentiment", "")).strip().lower()
+        reason = str(item.get("reason", ""))
+        if aid:
+            predictions[aid] = {"label": label, "reason": reason}
+
+    score = 0.0
+    correct = partial = wrong = 0
+    per_article = {}
+    for aid, expected in ground_truth.items():
+        pred = predictions.get(aid, {})
+        got = pred.get("label", "")
+        if got not in VALID_LABELS:
+            result = "invalid"
+            wrong += 1
+        elif got == expected:
+            result = "correct"
+            score += 2
+            correct += 1
+        elif (got, expected) in ADJACENT:
+            result = "partial"
+            score += 1
+            partial += 1
+        else:
+            result = "wrong"
+            wrong += 1
+        per_article[aid] = {
+            "expected": expected, "got": got,
+            "result": result, "reason": pred.get("reason", ""),
+        }
+
+    return {
+        "valid": True,
+        "correct": correct,
+        "partial": partial,
+        "wrong": wrong,
+        "predictions": per_article,
+        "score": min(10, round(score, 1)),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Core runner
 # ---------------------------------------------------------------------------
@@ -299,6 +455,8 @@ def run_task(host: str, model: str, task: dict, num_ctx: int = 8192) -> dict:
         record["eval"] = eval_kg(response)
     elif task["type"] == "code":
         record["eval"] = eval_code(response)
+    elif task["type"] == "sentiment":
+        record["eval"] = eval_sentiment(response, task["ground_truth"])
     else:
         record["eval"] = score_text(response)
 
@@ -404,6 +562,9 @@ def main():
             elif task["type"] == "code":
                 out = ev.get("output", "")[:80]
                 print(f"           runs={ev.get('runs')}  {out}")
+            elif task["type"] == "sentiment":
+                print(f"           correct={ev.get('correct')}/5  "
+                      f"partial={ev.get('partial')}  wrong={ev.get('wrong')}")
             else:
                 print(f"           words={ev.get('word_count')}")
 

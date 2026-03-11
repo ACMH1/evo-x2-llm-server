@@ -42,6 +42,7 @@ model-evaluations/
 | `kg_extraction` | Knowledge Graph Extraction | `kg` | Structured JSON output fidelity, entity coverage, schema compliance |
 | `code_generation` | Code Generation & Correctness | `code` | Code correctness (assertions executed), instruction following |
 | `reasoning` | Reasoning / System Diagnosis | `text` | Analytical depth, specificity, avoiding confusing symptoms for causes |
+| `sentiment_analysis` | Sentiment Analysis | `sentiment` | Label accuracy vs ground truth across 5 news articles (positive/negative/neutral/mixed) |
 
 List all tasks: `python3 eval.py --list-tasks`
 
@@ -55,7 +56,7 @@ TASKS = {
 
     "your_task_id": {
         "name": "Human-readable task name",
-        "type": "text",          # "kg" | "code" | "text"
+        "type": "text",          # "kg" | "code" | "text" | "sentiment"
         "prompt": "Your prompt here.",
     },
 }
@@ -64,6 +65,9 @@ TASKS = {
 - `type: "kg"` — expects JSON with `nodes` + `edges`; auto-scored by `eval_kg()`
 - `type: "code"` — expects runnable Python; auto-scored by executing it via `eval_code()`
 - `type: "text"` — heuristic keyword scoring via `score_text()`; edit the keyword lists in that function to match your new task's expected content
+- `type: "sentiment"` — accuracy scored against a `ground_truth` dict you provide; add `"ground_truth": {"A1": "positive", "A2": "negative", ...}` alongside the task and list the articles in the prompt
+
+For a new sentiment-style task with different articles, copy the `SENTIMENT_ARTICLES` block in `eval.py`, define your own articles + labels, and point the task at that ground truth dict.
 
 ## Adding a new model
 
@@ -96,6 +100,12 @@ To add it to the default list so it runs automatically, add it to `KNOWN_MODELS`
 - −2 pts — response under 80 words
 
 Edit `score_text()` in `eval.py` to tune scoring for different prompt types.
+
+**Sentiment (0-10):**
+- 2 pts per article with correct label (5 articles × 2 = 10 max)
+- 1 pt partial credit for adjacent labels: `positive`↔`mixed`, `negative`↔`mixed`
+- 0 pts for wrong label, invalid label, missing article, or unparseable JSON
+- Articles: A1 (positive), A2 (negative), A3 (neutral), A4 (mixed), A5 (negative)
 
 ## CLI reference
 
