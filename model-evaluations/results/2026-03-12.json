@@ -1,0 +1,244 @@
+{
+  "qwen2.5-coder:7b": {
+    "kg_extraction": {
+      "response": "```json\n{\n  \"nodes\": [\n    {\"id\": \"Linux kernel\", \"label\": \"Linux kernel\", \"type\": \"Software\"},\n    {\"id\": \"Linus Torvalds\", \"label\": \"Linus Torvalds\", \"type\": \"Person\"},\n    {\"id\": \"GNU project\", \"label\": \"GNU project\", \"type\": \"Software\"},\n    {\"id\": \"Richard Stallman\", \"label\": \"Richard Stallman\", \"type\": \"Person\"},\n    {\"id\": \"Systemd\", \"label\": \"Systemd\", \"type\": \"Software\"},\n    {\"id\": \"Lennart Poettering\", \"label\": \"Lennart Poettering\", \"type\": \"Person\"},\n    {\"id\": \"monolithic architecture\", \"label\": \"monolithic architecture\", \"type\": \"Architecture\"},\n    {\"id\": \"device drivers\", \"label\": \"device drivers\", \"type\": \"Component\"},\n    {\"id\": \"file system management\", \"label\": \"file system management\", \"type\": \"Component\"},\n    {\"id\": \"memory management\", \"label\": \"memory management\", \"type\": \"Component\"},\n    {\"id\": \"userspace tools\", \"label\": \"userspace tools\", \"type\": \"Component\"},\n    {\"id\": \"Ubuntu\", \"label\": \"Ubuntu\", \"type\": \"Distro\"},\n    {\"id\": \"Fedora\", \"label\": \"Fedora\", \"type\": \"Distro\"},\n    {\"id\": \"SysV init system\", \"label\": \"SysV init system\", \"type\": \"System\"}\n  ],\n  \"edges\": [\n    {\"source\": \"Linux kernel\", \"target\": \"Linus Torvalds\", \"relation\": \"developed by\"},\n    {\"source\": \"Linux kernel\", \"target\": \"monolithic architecture\", \"relation\": \"uses\"},\n    {\"source\": \"GNU project\", \"target\": \"Richard Stallman\", \"relation\": \"started by\"},\n    {\"source\": \"GNU project\", \"target\": \"userspace tools\", \"relation\": \"provides\"},\n    {\"source\": \"Systemd\", \"target\": \"Lennart Poettering\", \"relation\": \"created by\"},\n    {\"source\": \"Systemd\", \"target\": \"SysV init system\", \"relation\": \"replaces\"},\n    {\"source\": \"Systemd\", \"target\": \"Linux kernel\", \"relation\": \"manages services and boot process for\"},\n    {\"source\": \"Ubuntu\", \"target\": \"Linux kernel\", \"relation\": \"uses\"},\n    {\"source\": \"Ubuntu\", \"target\": \"Systemd\", \"relation\": \"uses\"},\n    {\"source\": \"Fedora\", \"target\": \"Linux kernel\", \"relation\": \"uses\"},\n    {\"source\": \"Fedora\", \"target\": \"Systemd\", \"relation\": \"uses\"}\n  ]\n}\n```",
+      "load_s": 2.300222702,
+      "prefill_tps": 1026.2934287530709,
+      "gen_tps": 41.526460876227674,
+      "gen_tok": 594,
+      "total_s": 16.99768900871277,
+      "eval": {
+        "valid": true,
+        "nodes": 14,
+        "edges": 11,
+        "schema_ok": true,
+        "score": 10
+      }
+    },
+    "code_generation": {
+      "response": "```python\ndef find_prime_factors(n: int) -> list[int]:\n    factors = []\n    # Divide n by 2 until it's odd\n    while n % 2 == 0:\n        factors.append(2)\n        n //= 2\n    # Check for odd factors\n    for i in range(3, int(n**0.5) + 1, 2):\n        while n % i == 0:\n            factors.append(i)\n            n //= i\n    # If n is a prime number greater than 2\n    if n > 2:\n        factors.append(n)\n    return factors\n\n# Assertions\nassert find_prime_factors(1)   == []\nassert find_prime_factors(12)  == [2, 2, 3]\nassert find_prime_factors(100) == [2, 2, 5, 5]\nassert find_prime_factors(97)  == [97]\n```",
+      "load_s": 2.282465275,
+      "prefill_tps": 994.7209295295148,
+      "gen_tps": 42.359638350910764,
+      "gen_tok": 200,
+      "total_s": 7.225730657577515,
+      "eval": {
+        "runs": true,
+        "output": "",
+        "score": 10
+      }
+    },
+    "reasoning": {
+      "response": "1. **Cause: **Cron Jobs/Background Tasks\n   - **Explanation:** During the spike hours, there might be a significant increase in background jobs or scheduled tasks that are consuming network resources.\n   - **Diag Commands:**\n     - `kubectl get jobs -n <namespace> --watch` to check for any new or rescheduled jobs.\n     - `ps aux | grep cron` to check for any unexpected cron jobs running at unusual times.\n\n2. **Cause: **Data Migration/ETL Processes**\n   - **Explanation:** Data migration or Extract, Transform, Load (ETL) processes that occur during off-peak hours can lead to network congestion.\n   - **Diag Commands:**\n     - `psql -c \"SELECT * FROM pg_stat_activity WHERE state = 'active' AND datname = 'shared_db'\"` to see which queries are consuming resources.\n     - `SELECT * FROM pg_stat_replication;` to check if there are any active replication processes that might be causing network issues.\n\n3. **Cause: **Network Latency Between Microservices**\n   - **Explanation:** Network latency can increase if there are misconfigurations or high traffic between services, leading to spikes.\n   - **Diag Commands:**\n     - `kubectl exec -it <service-pod> -n <namespace> -- /bin/sh` and run `ping <other-service-pod>` to check network latency between services.\n     - Use tools like `traceroute` to diagnose routing issues between services.",
+      "load_s": 2.272889824,
+      "prefill_tps": 1069.5695939903635,
+      "gen_tps": 41.98826730405354,
+      "gen_tok": 313,
+      "total_s": 9.940500020980835,
+      "eval": {
+        "score": 7,
+        "word_count": 190
+      }
+    }
+  },
+  "qwen2.5-coder:32b": {
+    "kg_extraction": {
+      "response": "{\n  \"nodes\": [\n    {\"id\": \"Linux_kernel\", \"label\": \"Linux kernel\", \"type\": \"software\"},\n    {\"id\": \"Linus_Torvalds\", \"label\": \"Linus Torvalds\", \"type\": \"person\"},\n    {\"id\": \"GNU_project\", \"label\": \"GNU project\", \"type\": \"software\"},\n    {\"id\": \"Richard_Stallman\", \"label\": \"Richard Stallman\", \"type\": \"person\"},\n    {\"id\": \"Ubuntu\", \"label\": \"Ubuntu\", \"type\": \"operating_system\"},\n    {\"id\": \"Fedora\", \"label\": \"Fedora\", \"type\": \"operating_system\"},\n    {\"id\": \"Systemd\", \"label\": \"Systemd\", \"type\": \"software\"},\n    {\"id\": \"Lennart_Poettering\", \"label\": \"Lennart Poettering\", \"type\": \"person\"},\n    {\"id\": \"SysV_init_system\", \"label\": \"SysV init system\", \"type\": \"software\"}\n  ],\n  \"edges\": [\n    {\"source\": \"Linus_Torvalds\", \"target\": \"Linux_kernel\", \"relation\": \"developed\"},\n    {\"source\": \"Linux_kernel\", \"target\": \"device_drivers\", \"relation\": \"includes\"},\n    {\"source\": \"Linux_kernel\", \"target\": \"file_system_management\", \"relation\": \"includes\"},\n    {\"source\": \"Linux_kernel\", \"target\": \"memory_management\", \"relation\": \"includes\"},\n    {\"source\": \"Richard_Stallman\", \"target\": \"GNU_project\", \"relation\": \"started\"},\n    {\"source\": \"GNU_project\", \"target\": \"userspace_tools\", \"relation\": \"provides\"},\n    {\"source\": \"userspace_tools\", \"target\": \"Linux_kernel\", \"relation\": \"combines_with\"},\n    {\"source\": \"Linux_kernel\", \"target\": \"Ubuntu\", \"relation\": \"part_of\"},\n    {\"source\": \"Linux_kernel\", \"target\": \"Fedora\", \"relation\": \"part_of\"},\n    {\"source\": \"Lennart_Poettering\", \"target\": \"Systemd\", \"relation\": \"created\"},\n    {\"source\": \"Systemd\", \"target\": \"SysV_init_system\", \"relation\": \"replaced\"},\n    {\"source\": \"Systemd\", \"target\": \"system_services\", \"relation\": \"manages\"},\n    {\"source\": \"Systemd\", \"target\": \"boot_process\", \"relation\": \"manages\"}\n  ]\n}",
+      "load_s": 6.309678553,
+      "prefill_tps": 249.61941516307152,
+      "gen_tps": 10.047105631017748,
+      "gen_tok": 529,
+      "total_s": 60.03853678703308,
+      "eval": {
+        "valid": true,
+        "nodes": 9,
+        "edges": 13,
+        "schema_ok": true,
+        "score": 10
+      }
+    },
+    "code_generation": {
+      "response": "```python\ndef find_prime_factors(n: int) -> list[int]:\n    factors = []\n    d = 2\n    while n > 1:\n        while n % d == 0:\n            factors.append(d)\n            n //= d\n        d += 1\n    return factors\n\nassert find_prime_factors(1)   == []\nassert find_prime_factors(12)  == [2, 2, 3]\nassert find_prime_factors(100) == [2, 2, 5, 5]\nassert find_prime_factors(97)  == [97]\n```",
+      "load_s": 3.040032836,
+      "prefill_tps": 246.9057752904834,
+      "gen_tps": 10.199321921173972,
+      "gen_tok": 128,
+      "total_s": 16.290122747421265,
+      "eval": {
+        "runs": true,
+        "output": "",
+        "score": 10
+      }
+    },
+    "reasoning": {
+      "response": "### 1. Network Congestion During Maintenance or Scheduled Tasks\n**Explanation:** Scheduled network maintenance or background tasks could cause increased network congestion and latency specifically between 02:00-04:00 UTC.\n**Diagnostics:**\n- `iftop -i eth0 -t -n -N -B` to monitor network traffic on the main network interface.\n- `journalctl -u networkd-dispatcher --since \"02:00\" --until \"04:00\"` to check for any network-related logs during the spike time.\n\n### 2. Daily Batch Processing or ETL Jobs\n**Explanation:** Daily batch processing or ETL jobs could consume network bandwidth, causing latency spikes in the specified time window.\n**Diagnostics:**\n- `ps aux | grep -E \"cron|batch|etl\"` to check if any batch or ETL jobs are scheduled to run during the spike time.\n- `pg_stat_activity` to see if there are any long-running queries or batch processes impacting the shared PostgreSQL database.\n\n### 3. Background Cache Refresh or Expiration\n**Explanation:** Scheduled cache refresh or expiration tasks could lead to increased network traffic as services synchronize or update their state.\n**Diagnostics:**\n- `redis-cli info stats | grep \"key\"` to check for key space operations and see if there are unusual activities.\n- `redis-cli monitor` to capture real-time commands and observe cache refresh activities during the spike time.",
+      "load_s": 3.035410186,
+      "prefill_tps": 262.5034032472467,
+      "gen_tps": 10.106097631910686,
+      "gen_tok": 303,
+      "total_s": 33.597805976867676,
+      "eval": {
+        "score": 4,
+        "word_count": 196
+      }
+    }
+  },
+  "qwen3-coder:30b": {
+    "kg_extraction": {
+      "response": "{\n  \"nodes\": [\n    {\"id\": \"Linux kernel\", \"label\": \"Linux kernel\", \"type\": \"system\"},\n    {\"id\": \"Linus Torvalds\", \"label\": \"Linus Torvalds\", \"type\": \"person\"},\n    {\"id\": \"1991\", \"label\": \"1991\", \"type\": \"date\"},\n    {\"id\": \"monolithic architecture\", \"label\": \"monolithic architecture\", \"type\": \"architecture\"},\n    {\"id\": \"GNU project\", \"label\": \"GNU project\", \"type\": \"project\"},\n    {\"id\": \"Richard Stallman\", \"label\": \"Richard Stallman\", \"type\": \"person\"},\n    {\"id\": \"1983\", \"label\": \"1983\", \"type\": \"date\"},\n    {\"id\": \"GNU/Linux distributions\", \"label\": \"GNU/Linux distributions\", \"type\": \"system\"},\n    {\"id\": \"Ubuntu\", \"label\": \"Ubuntu\", \"type\": \"system\"},\n    {\"id\": \"Fedora\", \"label\": \"Fedora\", \"type\": \"system\"},\n    {\"id\": \"Systemd\", \"label\": \"Systemd\", \"type\": \"system\"},\n    {\"id\": \"Lennart Poettering\", \"label\": \"Lennart Poettering\", \"type\": \"person\"},\n    {\"id\": \"SysV init system\", \"label\": \"SysV init system\", \"type\": \"system\"}\n  ],\n  \"edges\": [\n    {\"source\": \"Linux kernel\", \"target\": \"Linus Torvalds\", \"relation\": \"developed by\"},\n    {\"source\": \"Linux kernel\", \"target\": \"1991\", \"relation\": \"developed in\"},\n    {\"source\": \"Linux kernel\", \"target\": \"monolithic architecture\", \"relation\": \"uses\"},\n    {\"source\": \"GNU project\", \"target\": \"Richard Stallman\", \"relation\": \"started by\"},\n    {\"source\": \"GNU project\", \"target\": \"1983\", \"relation\": \"started in\"},\n    {\"source\": \"Linux kernel\", \"target\": \"GNU/Linux distributions\", \"relation\": \"combined with\"},\n    {\"source\": \"GNU project\", \"target\": \"GNU/Linux distributions\", \"relation\": \"provides\"},\n    {\"source\": \"Ubuntu\", \"target\": \"GNU/Linux distributions\", \"relation\": \"is type of\"},\n    {\"source\": \"Fedora\", \"target\": \"GNU/Linux distributions\", \"relation\": \"is type of\"},\n    {\"source\": \"Systemd\", \"target\": \"Lennart Poettering\", \"relation\": \"created by\"},\n    {\"source\": \"Systemd\", \"target\": \"SysV init system\", \"relation\": \"replaced\"},\n    {\"source\": \"Systemd\", \"target\": \"Linux kernel\", \"relation\": \"manages\"}\n  ]\n}",
+      "load_s": 4.524208649,
+      "prefill_tps": 658.3338916058257,
+      "gen_tps": 53.675938448386816,
+      "gen_tok": 605,
+      "total_s": 17.34113907814026,
+      "eval": {
+        "valid": true,
+        "nodes": 13,
+        "edges": 12,
+        "schema_ok": true,
+        "score": 10
+      }
+    },
+    "code_generation": {
+      "response": "def find_prime_factors(n: int) -> list[int]:\n    factors = []\n    divisor = 2\n    while divisor * divisor <= n:\n        while n % divisor == 0:\n            factors.append(divisor)\n            n //= divisor\n        divisor += 1\n    if n > 1:\n        factors.append(n)\n    return factors\n\nassert find_prime_factors(1)   == []\nassert find_prime_factors(12)  == [2, 2, 3]\nassert find_prime_factors(100) == [2, 2, 5, 5]\nassert find_prime_factors(97)  == [97]",
+      "load_s": 3.244735958,
+      "prefill_tps": 550.2272920164909,
+      "gen_tps": 55.43142451222323,
+      "gen_tok": 138,
+      "total_s": 6.296092987060547,
+      "eval": {
+        "runs": true,
+        "output": "",
+        "score": 10
+      }
+    },
+    "reasoning": {
+      "response": "**1. Database Maintenance/Backup Operations**\nPostgreSQL autovacuum or scheduled backups running during off-peak hours can cause lock contention and network latency spikes.\n\n```sql\nSELECT datname, usename, query, query_start, state FROM pg_stat_activity WHERE state = 'active' AND query LIKE '%vacuum%';\nSELECT pg_size_pretty(pg_database_size('your_db_name'));\n```\n\n**2. Redis Memory Cleanup (Eviction/Rehashing)**\nRedis periodic memory cleanup operations or hash table rehashing during low-traffic hours can cause temporary network latency spikes.\n\n```bash\nredis-cli info memory | grep -E \"(used_memory|mem_fragmentation_ratio)\"\nredis-cli info stats | grep evicted_keys\n```\n\n**3. Network/Infrastructure Throttling**\nCloud provider or network infrastructure throttling during maintenance windows or automated scaling operations between 2-4 AM UTC.\n\n```bash\ntcpdump -i any -n port 5432 | grep -E \"(SYN|ACK)\" | wc -l\nping -c 10 your_database_host\n```",
+      "load_s": 3.262628626,
+      "prefill_tps": 407.3256960049814,
+      "gen_tps": 55.13362583758789,
+      "gen_tok": 227,
+      "total_s": 8.190876007080078,
+      "eval": {
+        "score": 5,
+        "word_count": 118
+      }
+    }
+  },
+  "qwen3.5:35b-a3b": {
+    "kg_extraction": {
+      "response": "{\n  \"nodes\": [\n    {\n      \"id\": \"linux_kernel\",\n      \"label\": \"Linux kernel\",\n      \"type\": \"Software\"\n    },\n    {\n      \"id\": \"linus_torvalds\",\n      \"label\": \"Linus Torvalds\",\n      \"type\": \"Person\"\n    },\n    {\n      \"id\": \"operating_systems\",\n      \"label\": \"Operating systems\",\n      \"type\": \"Category\"\n    },\n    {\n      \"id\": \"monolithic_architecture\",\n      \"label\": \"Monolithic architecture\",\n      \"type\": \"Architecture\"\n    },\n    {\n      \"id\": \"device_drivers\",\n      \"label\": \"Device drivers\",\n      \"type\": \"Component\"\n    },\n    {\n      \"id\": \"file_system_management\",\n      \"label\": \"File system management\",\n      \"type\": \"Function\"\n    },\n    {\n      \"id\": \"memory_management\",\n      \"label\": \"Memory management\",\n      \"type\": \"Function\"\n    },\n    {\n      \"id\": \"kernel_space\",\n      \"label\": \"Kernel space\",\n      \"type\": \"Location\"\n    },\n    {\n      \"id\": \"gnu_project\",\n      \"label\": \"GNU project\",\n      \"type\": \"Project\"\n    },\n    {\n      \"id\": \"richard_stallman\",\n      \"label\": \"Richard Stallman\",\n      \"type\": \"Person\"\n    },\n    {\n      \"id\": \"userspace_tools\",\n      \"label\": \"Userspace tools\",\n      \"type\": \"Software\"\n    },\n    {\n      \"id\": \"ubuntu\",\n      \"label\": \"Ubuntu\",\n      \"type\": \"Operating System\"\n    },\n    {\n      \"id\": \"fedora\",\n      \"label\": \"Fedora\",\n      \"type\": \"Operating System\"\n    },\n    {\n      \"id\": \"gnu_linux_distributions\",\n      \"label\": \"GNU/Linux distributions\",\n      \"type\": \"Category\"\n    },\n    {\n      \"id\": \"systemd\",\n      \"label\": \"Systemd\",\n      \"type\": \"Software\"\n    },\n    {\n      \"id\": \"lennart_poettering\",\n      \"label\": \"Lennart Poettering\",\n      \"type\": \"Person\"\n    },\n    {\n      \"id\": \"sysv_init_system\",\n      \"label\": \"SysV init system\",\n      \"type\": \"Software\"\n    },\n    {\n      \"id\": \"system_services\",\n      \"label\": \"System services\",\n      \"type\": \"Component\"\n    },\n    {\n      \"id\": \"boot_process\",\n      \"label\": \"Boot process\",\n      \"type\": \"Process\"\n    }\n  ],\n  \"edges\": [\n    {\n      \"source\": \"linux_kernel\",\n      \"target\": \"linus_torvalds\",\n      \"relation\": \"developed_by\"\n    },\n    {\n      \"source\": \"linux_kernel\",\n      \"target\": \"operating_systems\",\n      \"relation\": \"is_core_of\"\n    },\n    {\n      \"source\": \"linux_kernel\",\n      \"target\": \"monolithic_architecture\",\n      \"relation\": \"uses_architecture\"\n    },\n    {\n      \"source\": \"device_drivers\",\n      \"target\": \"kernel_space\",\n      \"relation\": \"run_in\"\n    },\n    {\n      \"source\": \"file_system_management\",\n      \"target\": \"kernel_space\",\n      \"relation\": \"run_in\"\n    },\n    {\n      \"source\": \"memory_management\",\n      \"target\": \"kernel_space\",\n      \"relation\": \"run_in\"\n    },\n    {\n      \"source\": \"gnu_project\",\n      \"target\": \"richard_stallman\",\n      \"relation\": \"started_by\"\n    },\n    {\n      \"source\": \"gnu_project\",\n      \"target\": \"userspace_tools\",\n      \"relation\": \"provides\"\n    },\n    {\n      \"source\": \"userspace_tools\",\n      \"target\": \"linux_kernel\",\n      \"relation\": \"combines_with\"\n    },\n    {\n      \"source\": \"ubuntu\",\n      \"target\": \"gnu_linux_distributions\",\n      \"relation\": \"is_a\"\n    },\n    {\n      \"source\": \"fedora\",\n      \"target\": \"gnu_linux_distributions\",\n      \"relation\": \"is_a\"\n    },\n    {\n      \"source\": \"systemd\",\n      \"target\": \"lennart_poettering\",\n      \"relation\": \"created_by\"\n    },\n    {\n      \"source\": \"systemd\",\n      \"target\": \"sysv_init_system\",\n      \"relation\": \"replaced\"\n    },\n    {\n      \"source\": \"systemd\",\n      \"target\": \"system_services\",\n      \"relation\": \"manages\"\n    },\n    {\n      \"source\": \"systemd\",\n      \"target\": \"boot_process\",\n      \"relation\": \"manages\"\n    }\n  ]\n}",
+      "load_s": 6.575510491,
+      "prefill_tps": 450.9679843978243,
+      "gen_tps": 37.58126015605973,
+      "gen_tok": 7451,
+      "total_s": 229.5969741344452,
+      "eval": {
+        "valid": true,
+        "nodes": 19,
+        "edges": 15,
+        "schema_ok": true,
+        "score": 10
+      }
+    },
+    "code_generation": {
+      "response": "def find_prime_factors(n: int) -> list[int]:\n    factors = []\n    d = 2\n    while d * d <= n:\n        while n % d == 0:\n            factors.append(d)\n            n //= d\n        d += 1\n    if n > 1:\n        factors.append(n)\n    return factors\n\nassert find_prime_factors(1)   == []\nassert find_prime_factors(12)  == [2, 2, 3]\nassert find_prime_factors(100) == [2, 2, 5, 5]\nassert find_prime_factors(97)  == [97]",
+      "load_s": 6.515616417,
+      "prefill_tps": 451.314935399758,
+      "gen_tps": 37.79810369481175,
+      "gen_tok": 4283,
+      "total_s": 134.57589054107666,
+      "eval": {
+        "runs": true,
+        "output": "",
+        "score": 10
+      }
+    },
+    "reasoning": {
+      "response": "1. **Shared PostgreSQL Nightly Maintenance**\n   Scheduled database tasks like `pg_dump` or `VACUUM` run exclusively at night, consuming all available connections or locking shared tables which forces service API requests to queue while waiting for I/O completion.\n   - SQL Query: `SELECT pid, wait_event_type, query FROM pg_stat_activity WHERE wait_event_type IS NOT NULL;`\n   - SQL Query: `SELECT count(*) AS active_connections FROM pg_stat_activity;`\n\n2. **Scheduled Egress Bandwidth Saturation**\n   Automated data export scripts transfer large datasets to external storage at night, saturating the network uplink and increasing queuing delays for internal service-to-service TCP traffic sharing the same interface.\n   - Diagnostic Command: `sudo iftop -n -b -i <interface_name>` (Visualize real-time egress saturation)\n   - Diagnostic Command: `sar -n DEV 5 3` (Monitor per-second RX/TX packets and drop counts)\n\n3. **Cloud Infrastructure Storage Snapshots**\n   Cloud provider automated backup snapshots trigger I/O throttling on the underlying storage controller, temporarily degrading virtualized network throughput and packet processing speed for all connected instances.\n   - Diagnostic Command: `iostat -x 1 10` (Check for `%iowait` spikes on system disk)\n   - Diagnostic Command: `vmstat 1 10` (Monitor blocked processes and context switches)",
+      "load_s": 6.363327425,
+      "prefill_tps": 315.5248219455075,
+      "gen_tps": 37.685626468371304,
+      "gen_tok": 5462,
+      "total_s": 170.7155568599701,
+      "eval": {
+        "score": 8,
+        "word_count": 178
+      }
+    }
+  },
+  "deepseek-r1:70b": {
+    "kg_extraction": {
+      "response": "{\n  \"nodes\": [\n    {\n      \"id\": \"Linux_kernel\",\n      \"label\": \"Linux kernel\",\n      \"type\": \"Software\"\n    },\n    {\n      \"id\": \"Linus_Torvalds\",\n      \"label\": \"Linus Torvalds\",\n      \"type\": \"Person\"\n    },\n    {\n      \"id\": \"1991\",\n      \"label\": \"1991\",\n      \"type\": \"Year\"\n    },\n    {\n      \"id\": \"monolithic_architecture\",\n      \"label\": \"Monolithic architecture\",\n      \"type\": \"Architecture\"\n    },\n    {\n      \"id\": \"GNU_project\",\n      \"label\": \"GNU project\",\n      \"type\": \"Project\"\n    },\n    {\n      \"id\": \"Richard_Stallman\",\n      \"label\": \"Richard Stallman\",\n      \"type\": \"Person\"\n    },\n    {\n      \"id\": \"1983\",\n      \"label\": \"1983\",\n      \"type\": \"Year\"\n    },\n    {\n      \"id\": \"Systemd\",\n      \"label\": \"Systemd\",\n      \"type\": \"Software\"\n    },\n    {\n      \"id\": \"Lennart_Poettering\",\n      \"label\": \"Lennart Poettering\",\n      \"type\": \"Person\"\n    },\n    {\n      \"id\": \"SysV_init\",\n      \"label\": \"SysV init\",\n      \"type\": \"Software\"\n    },\n    {\n      \"id\": \"Ubuntu\",\n      \"label\": \"Ubuntu\",\n      \"type\": \"Operating System\"\n    },\n    {\n      \"id\": \"Fedora\",\n      \"label\": \"Fedora\",\n      \"type\": \"Operating System\"\n    }\n  ],\n  \"edges\": [\n    {\n      \"source\": \"Linux_kernel\",\n      \"target\": \"Linus_Torvalds\",\n      \"relation\": \"developed by\"\n    },\n    {\n      \"source\": \"Linux_kernel\",\n      \"target\": \"1991\",\n      \"relation\": \"developed in\"\n    },\n    {\n      \"source\": \"Linux_kernel\",\n      \"target\": \"monolithic_architecture\",\n      \"relation\": \"uses\"\n    },\n    {\n      \"source\": \"GNU_project\",\n      \"target\": \"Richard_Stallman\",\n      \"relation\": \"started by\"\n    },\n    {\n      \"source\": \"GNU_project\",\n      \"target\": \"1983\",\n      \"relation\": \"started in\"\n    },\n    {\n      \"source\": \"Systemd\",\n      \"target\": \"Lennart_Poettering\",\n      \"relation\": \"created by\"\n    },\n    {\n      \"source\": \"Systemd\",\n      \"target\": \"SysV_init\",\n      \"relation\": \"replaced\"\n    },\n    {\n      \"source\": \"Linux_kernel\",\n      \"target\": \"GNU_project\",\n      \"relation\": \"combines with\"\n    },\n    {\n      \"source\": \"Linux_kernel\",\n      \"target\": \"Ubuntu\",\n      \"relation\": \"part of\"\n    },\n    {\n      \"source\": \"Linux_kernel\",\n      \"target\": \"Fedora\",\n      \"relation\": \"part of\"\n    }\n  ]\n}",
+      "load_s": 11.340571177,
+      "prefill_tps": 99.33746351611184,
+      "gen_tps": 4.584440130774525,
+      "gen_tok": 920,
+      "total_s": 214.23231053352356,
+      "eval": {
+        "valid": true,
+        "nodes": 12,
+        "edges": 10,
+        "schema_ok": true,
+        "score": 10
+      }
+    },
+    "code_generation": {
+      "error": "timed out"
+    },
+    "reasoning": {
+      "response": "1. **PostgreSQL Daily Backup or Maintenance**  \n   - Explanation: A scheduled database backup or maintenance task (e.g., vacuum, index rebuild) may run between 02:00-04:00 UTC, causing contention on shared resources despite normal CPU/memory.  \n   - Diagnostics:  \n     1. `pg_stat_activity` query to check for long-running queries during the window.  \n     2. `SELECT * FROM pg_scheduled_tasks WHERE start_time BETWEEN '02:00:00' AND '04:00:00';` to identify scheduled tasks.  \n\n2. **Redis Replication Lag or High Latency**  \n   - Explanation: Redis replication or high request rates during the window may cause elevated latency, especially if the primary instance is under heavy load.  \n   - Diagnostics:  \n     1. `redis-cli --stat` to check replication offsets and lag.  \n     2. `INFO replication` command to inspect replication status and delays.  \n\n3. **Network Congestion from Other Services**  \n   - Explanation: Other services or applications sharing the same network may cause elevated network latency during off-hours due to batch jobs or backups.  \n   - Diagnostics:  \n     1. `tcpdump -i <interface> -n -s 0 port 5432` to monitor PostgreSQL traffic for spikes.  \n     2. `iftop -i <interface>` to identify high network usage from other sources.",
+      "load_s": 10.63255063,
+      "prefill_tps": 105.2205009789948,
+      "gen_tps": 4.589571191168696,
+      "gen_tok": 686,
+      "total_s": 161.18856239318848,
+      "eval": {
+        "score": 8,
+        "word_count": 170
+      }
+    }
+  },
+  "llama4:scout": {
+    "kg_extraction": {
+      "response": "```\n{\n  \"nodes\": [\n    {\"id\": \"Linux kernel\", \"label\": \"Linux kernel\", \"type\": \"software\"},\n    {\"id\": \"Linus Torvalds\", \"label\": \"Linus Torvalds\", \"type\": \"person\"},\n    {\"id\": \"GNU project\", \"label\": \"GNU project\", \"type\": \"software\"},\n    {\"id\": \"Richard Stallman\", \"label\": \"Richard Stallman\", \"type\": \"person\"},\n    {\"id\": \"Systemd\", \"label\": \"Systemd\", \"type\": \"software\"},\n    {\"id\": \"Lennart Poettering\", \"label\": \"Lennart Poettering\", \"type\": \"person\"},\n    {\"id\": \"Ubuntu\", \"label\": \"Ubuntu\", \"type\": \"software\"},\n    {\"id\": \"Fedora\", \"label\": \"Fedora\", \"type\": \"software\"},\n    {\"id\": \"SysV init\", \"label\": \"SysV init\", \"type\": \"software\"}\n  ],\n  \"edges\": [\n    {\"source\": \"Linux kernel\", \"target\": \"Linus Torvalds\", \"relation\": \"developed by\"},\n    {\"source\": \"GNU project\", \"target\": \"Richard Stallman\", \"relation\": \"started by\"},\n    {\"source\": \"Linux kernel\", \"target\": \"GNU project\", \"relation\": \"combined with\"},\n    {\"source\": \"Ubuntu\", \"target\": \"Linux kernel\", \"relation\": \"based on\"},\n    {\"source\": \"Fedora\", \"target\": \"Linux kernel\", \"relation\": \"based on\"},\n    {\"source\": \"Systemd\", \"target\": \"Lennart Poettering\", \"relation\": \"created by\"},\n    {\"source\": \"Systemd\", \"target\": \"Linux kernel\", \"relation\": \"replaced\"},\n    {\"source\": \"SysV init\", \"target\": \"Systemd\", \"relation\": \"replaced by\"}\n  ]\n}\n```",
+      "load_s": 13.971257845,
+      "prefill_tps": 167.24719580360832,
+      "gen_tps": 12.256487432146677,
+      "gen_tok": 403,
+      "total_s": 50.86747336387634,
+      "eval": {
+        "valid": true,
+        "nodes": 9,
+        "edges": 8,
+        "schema_ok": true,
+        "score": 10
+      }
+    },
+    "code_generation": {
+      "response": "```python\ndef find_prime_factors(n: int) -> list[int]:\n    i = 2\n    factors = []\n    while i * i <= n:\n        if n % i:\n            i += 1\n        else:\n            n //= i\n            factors.append(i)\n    if n > 1:\n        factors.append(n)\n    return factors\n\nassert find_prime_factors(1)   == []\nassert find_prime_factors(12)  == [2, 2, 3]\nassert find_prime_factors(100) == [2, 2, 5, 5]\nassert find_prime_factors(97)  == [97]\n```",
+      "load_s": 17.513260973,
+      "prefill_tps": 180.92437034474955,
+      "gen_tps": 12.476736617160727,
+      "gen_tok": 142,
+      "total_s": 31.863492965698242,
+      "eval": {
+        "runs": true,
+        "output": "",
+        "score": 10
+      }
+    },
+    "reasoning": {
+      "response": "Based on the provided information, here are three potential root causes for the latency spikes:\n\n1. **Garbage Collection (GC) Pause**: Periodically elevated network latency and service-to-service communication issues can be caused by GC pauses, especially if the platform uses a JVM-based language.\n    * Diagnostic commands: \n        + `docker stats` or equivalent to monitor container resource usage and GC frequency \n        + `jstat -gc` or equivalent to monitor JVM GC pause times\n\n2. **Redis Cache Saturation**: As the cache fills up, Redis performance degrades, leading to increased latency.\n    * Diagnostic commands: \n        + `redis-cli info memory` to check Redis memory usage \n        + `redis-cli slowlog get` to analyze slow Redis queries\n\n3. **PostgreSQL Checkpoint and WAL Writer Bottleneck**: Checkpoint and WAL (Write-Ahead Logging) writer bottlenecks can cause PostgreSQL performance issues, especially during periods of low activity.\n    * Diagnostic commands: \n        + `pg_stat_activity` to monitor PostgreSQL query execution times \n        + `pg_stat_bgwriter` to analyze checkpoint and WAL writer performance",
+      "load_s": 17.279704959,
+      "prefill_tps": 190.89444729430838,
+      "gen_tps": 12.460113487061014,
+      "gen_tok": 231,
+      "total_s": 38.67765474319458,
+      "eval": {
+        "score": 6,
+        "word_count": 151
+      }
+    }
+  }
+}
