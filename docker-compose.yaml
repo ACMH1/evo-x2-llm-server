@@ -6,7 +6,7 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - /models:/root/.ollama/models
+      - /models:/root/.ollama/models:Z
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri

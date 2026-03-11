@@ -304,7 +304,7 @@ services:
     ports:
       - "${OLLAMA_PORT}:${OLLAMA_PORT}"
     volumes:
-      - ${MODELS_DIR}:/root/.ollama/models
+      - ${MODELS_DIR}:/root/.ollama/models:Z
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
