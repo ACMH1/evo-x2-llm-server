@@ -47,10 +47,9 @@ def api(host, path, payload=None, method="POST"):
         return json.load(r)
 
 
-def unload_all(host):
-    """Set keep_alive=0 on a dummy generate to flush loaded models."""
+def unload_all(host, timeout=120):
+    """Evict all loaded models and wait until /api/ps reports none."""
     try:
-        # List loaded models
         resp = api(host, "/api/ps", method="GET")
         for m in resp.get("models", []):
             api(host, "/api/generate", {
@@ -58,7 +57,17 @@ def unload_all(host):
             })
     except Exception:
         pass
-    time.sleep(2)
+
+    # Poll until all models are evicted (or timeout)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            resp = api(host, "/api/ps", method="GET")
+            if not resp.get("models"):
+                return
+        except Exception:
+            pass
+        time.sleep(2)
 
 
 def run_benchmark(host, model, runs):
@@ -70,6 +79,7 @@ def run_benchmark(host, model, runs):
             "prompt": PROMPT,
             "stream": False,
             "keep_alive": 0,    # unload immediately after each run
+            "options": {"num_ctx": 8192},  # cap context to limit KV-cache RAM
         }
         t_start = time.time()
         try:
